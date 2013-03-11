@@ -7,3 +7,4 @@ README.GIT
 MANIFEST.SKIP
 RT-Extension-SMSNotify-.*
 \..*\.swp
+README.md
