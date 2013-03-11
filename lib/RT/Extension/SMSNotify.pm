@@ -45,10 +45,19 @@ scripactions manually if you prefer, or run:
 
 as a user that has read permission to your C<RT_SiteConfig.pm>.  B<Do not run
 C<make initdb> multiple times; this will result in duplicate entries in your RT
-database>. If you have duplicates you can carefully delete them manually from your
-database's C<scripactions> table.
+database>. If you have created duplicates you can carefully delete the
+duplicates manually.  Alternately, delete all scrips that use the actions then
+delete them all from your database's C<scripactions> table with something like:
+
+    DELETE FROM scripactions WHERE name LIKE '[SMSNotify]%';
+
+and add them back in by running C<make initdb> I<once>.
 
 =head1 CONFIGURATION
+
+ # Add the plugin to your RT_SiteConfig.pm's plugin list. (Append to any existing
+ # @Plugins setting rather than adding a new one).
+ Set(@Plugins, qw(RT::Extension::SMSNotify));
 
  # In RT_SiteConfig.pm, add entries for your SMS::Send provider and its setup
  # argument hash, eg:
@@ -122,11 +131,10 @@ use 5.10.1;
 use strict;
 use warnings;
 
-use vars qw{$VERSION @ISA};
 BEGIN {
-        $VERSION = '1.00';
-        @ISA     = 'RT::Extension::SMSNotify';
+        our $VERSION = '1.00';
 }
 
+use RT::Action::SMSNotify;
 
 1;

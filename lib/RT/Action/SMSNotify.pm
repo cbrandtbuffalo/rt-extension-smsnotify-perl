@@ -85,6 +85,7 @@ sub _ArgToUsers {
 	my $m = undef;
 	# To be set to a scalar phone number from p:
 	my $p = undef;
+	RT::Logger->debug("SMSNotify: Examining $name for recipients");
 	for ($name) {
 		when (/^TicketRequestors?$/) {
 			$m = $ticket->Requestors->UserMembersObj->ItemsArrayRef;
@@ -115,6 +116,12 @@ sub _ArgToUsers {
 		}
 	}
 	die("Assertion that either \$m or \$p is undef violated") if (defined($m) == defined($p));
+	if (defined($m)) {
+		my @recips =  map $_->Name, grep defined, @$m;
+		RT::Logger->debug("SMSNotify: Found " . scalar(@recips) . " recipient(s): " . join(', ', @recips) );
+	} else {
+		RT::Logger->debug("SMSNotify: Found phone number $p");
+	}
 	return $m, $p;
 }
 
@@ -143,7 +150,7 @@ sub Prepare {
 		return 0;
 	}
 
-	my $getpagerfn = RT->Config->Get('SMSNotifyGetPhoneForUserFn') // _GetPagerNumberForUserFilter;
+	my $getpagerfn = RT->Config->Get('SMSNotifyGetPhoneForUserFn') // \&_GetPagerNumberForUserFilter;
 
 	my $ticket = $self->TicketObj;
 	my $destusers = {};
@@ -156,9 +163,14 @@ sub Prepare {
 	# For each unique user to be notified, get their phone number(s) using
 	# the $SMSNotifyGetPhoneForUserFn mapping function and add all defined
 	# results to the numbers array.
+	RT::Logger->debug("SMSNotify: Checking users for pager numbers: " . join(', ', map $_->Name, values %$destusers) );
 	push(@numbers, grep length, map &{$getpagerfn}($_, $ticket), values %$destusers);
 
-	RT::Logger->info("Preparing to send SMSes to: " . Dumper(@numbers) );
+	if (@numbers) {
+		RT::Logger->info("SMSNotify: Preparing to send SMSes to: " . Dumper(@numbers) );
+	} else {
+		RT::Logger->info("SMSNotify: No recipients with pager numbers, not sending SMSes");
+	}
 
 	$self->{'PagerNumbers'} = \@numbers;
 
