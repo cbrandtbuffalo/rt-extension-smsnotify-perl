@@ -150,6 +150,16 @@ sub Prepare {
 		return 0;
 	}
 
+	if (! RT->Config->Get('SMSNotifyArguments') ) {
+		RT::Logger->error("\$SMSNotifyArguments is not set in RT_SiteConfig.pm");
+		return 0;
+	}
+
+	if (defined(RT->Config->Get('SMSNotifyProvider'))) {
+		RT::Logger->error("\$SMSNotifyProvider is not set in RT_SiteConfig.pm");
+		return 0;
+	}
+
 	my $getpagerfn = RT->Config->Get('SMSNotifyGetPhoneForUserFn') // \&_GetPagerNumberForUserFilter;
 
 	my $ticket = $self->TicketObj;
@@ -183,17 +193,20 @@ sub Commit {
 
 	my @memberlist = @{$self->{'PagerNumbers'}};
 
-	my $sender = SMS::Send->new( RT->Config->Get('SMSNotifyProvider'), %{RT->Config->Get('SMSNotifyArguments')});
+	my $cfgargs = RT->Config->Get('SMSNotifyArguments');
+	my $smsprovider = RT->Config->Get('SMSNotifyProvider');
+
+	my $sender = SMS::Send->new( $smsprovider, %$cfgargs );
 	foreach my $ph (@memberlist) {
 
-		# TODO: Sub in principal of current $ph
+		# TODO: Substitute principal associated with current $ph if any into template
 		my ($result, $message) = $self->TemplateObj->Parse(
 			Argument       => $self->Argument,
 			TicketObj      => $self->TicketObj,
 			TransactionObj => $self->TransactionObj
 		);
 		if ( !$result ) {
-			$RT::Logger->error("Failed to populate template: $result, $message");
+			$RT::Logger->error("SMSSend: Failed to populate template: $result, $message");
 			next;
 		}
 
@@ -201,15 +214,15 @@ sub Commit {
 		my $msgstring = $MIMEObj->bodyhandle->as_string;
 
 		eval {
-			$RT::Logger->debug("Notifying $ph about ticket SLA");
+			$RT::Logger->debug("SMSSend: Notifying $ph about ticket SLA");
 			$sender->send_sms(
 				text => $msgstring,
 				to   => $ph
 			);
-			$RT::Logger->info("Notified $ph about ticket SLA");
+			$RT::Logger->info("SMSSend: Notified $ph about ticket SLA");
 		};
 		if ($@) {
-			$RT::Logger->error("Failed to notify $ph about ticket SLA: $@");
+			$RT::Logger->error("SMSSend: Failed to notify $ph about ticket SLA: $@");
 		}
 	}
 
