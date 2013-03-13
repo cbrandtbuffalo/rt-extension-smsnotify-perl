@@ -133,6 +133,14 @@ The crontab entry:
 
   */1 * *   *   *   requesttracker4   rt-crontool --transaction last --search RT::Search::FromSQL --search-arg "(Status='new' OR Status='open') AND (Due > 'Jan 1, 1970') AND ((Due < '25 minutes' AND Due >= '24 minutes') OR (Due < '12 minutes' AND Due >= '11 minutes') OR (Due < '5 minutes' AND Due >= '3 minutes'))" --action RT::Action::SMSNotify --action-arg "TicketAdminCc,QueueAdminCc" --template 'SLA Alert SMS'
 
+If you want to test sending messages from cron use a simple search for ticket ID, eg:
+
+    rt-crontool --search RT::Search::FromSQL --search-arg 'Id = 1033' --action RT::Action::SMSNotify --action-arg "TicketAdminCc,QueueAdminCc" --template 'SLA Alert SMS'
+
+or to send direct to a specified phone number:
+
+    rt-crontool --search RT::Search::FromSQL --search-arg 'Id = 1033' --action RT::Action::SMSNotify --action-arg "p:+1234123132" --template 'SLA Alert SMS'
+
 =head TEMPLATES
 
 Unlike email templates, your SMS templates don't need a header. RT will
