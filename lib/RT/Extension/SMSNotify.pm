@@ -26,6 +26,15 @@ L<SMS::Send::RedOxygen>. You will need an SMS::Send driver module installed to
 use the SMSNotify extension. Writing them is easy if you can't find one for
 your provider.
 
+B<Most SMS providers only offer asynchronous non-guranteed delivery> and
+there's no provision for asynchronous delivery status notification in the
+SMS::Send API. If a text message isn't immediately rejected by the provider
+this plugin will report that the message was dispatched successfully. SMSNotify
+can make no guarantees about whether the message was delivered. If you need
+reliable, guaranteed-delivery messaging you should look elsewhere - but
+remember that no message is truly received until a human has read and
+acknowledged it.
+
 =head1 INSTALLATION
 
 Install RT::Extension::SMSNotify using CPAN or using the usual:
@@ -105,21 +114,48 @@ This method is useful for filtering users to limit the recipients of a message.
 =head2 Use with rt-crontool
 
 This is an example of RT::Extension::SMSNotify use with rt-crontool in
-/etc/crontab format. The example presumes the existence of a template named 'SLA Alert
-SMS' and assumes that your local RT user is named 'requesttracker4'. There must
-be a user in the RT database with 'gecos' set to the local RT user Cron uses.
+/etc/crontab format. The example presumes the existence of a template named
+'SLA Alert SMS' and assumes that your local RT user is named 'requesttracker4'.
+There must be a user in the RT database with 'gecos' set to the local RT user
+Cron uses. The action argument specifies that notifications should be sent to
+all ticket AdminCc users/groups and queue AdminCc watchers. Action arguments
+are documented in L<RT::Action::SMSNotify>.
 
 The search filter is a TicketSQL expression. You can use the RT query builder
 to generate TicketSQL, but it's very limited so you will usually want to write
 your own. You can test it by pasting it into the Advanced search in RT. This
 search sends SMSes for any ticket with a due date set that's due 24-25 mins,
-11-12 mins, or 3-5 mins from now. Since it runs every minute (C<*/1>; could just
-be written as C<*>) this will generate one message for each of the first time
-ranges and two for the 2nd.
+11-12 mins, or 3-5 mins from now. Since it runs every minute (C<*/1>; could
+just be written as C<*>) this will generate one message for each of the first
+time ranges and two for the 2nd.
 
 The crontab entry:
 
-  */1 * *   *   *   requesttracker4   rt-crontool --transaction last --search RT::Search::FromSQL --search-arg "(Status='new' OR Status='open') AND (Due > 'Jan 1, 1970') AND ((Due < '25 minutes' AND Due >= '24 minutes') OR (Due < '12 minutes' AND Due >= '11 minutes') OR (Due < '5 minutes' AND Due >= '3 minutes'))" --action RT::Action::SMSNotify --template 'SLA Alert SMS'
+  */1 * *   *   *   requesttracker4   rt-crontool --transaction last --search RT::Search::FromSQL --search-arg "(Status='new' OR Status='open') AND (Due > 'Jan 1, 1970') AND ((Due < '25 minutes' AND Due >= '24 minutes') OR (Due < '12 minutes' AND Due >= '11 minutes') OR (Due < '5 minutes' AND Due >= '3 minutes'))" --action RT::Action::SMSNotify --action-arg "TicketAdminCc,QueueAdminCc" --template 'SLA Alert SMS'
+
+=head TEMPLATES
+
+Unlike email templates, your SMS templates don't need a header. RT will
+complain if you don't leave the first line blank in your template as it thinks
+you still need headers.
+
+Your template may use the following variables:
+
+    Argument       The argument to this invocation of RT::Extension::SMSNotify
+    TicketObj      The ticket object (undef if none) this action is acting on
+    TransactionObj The current transaction
+    PhoneNumber    The phone number this template invocation will be sent to
+    UserObj        The RT::User whose pager number this is, or undef if it
+                   was supplied by other means like the argument.
+
+The template is executed once per SMS. If a user has more than one phone number
+it'll be executed once per phone number so you'll see the same UserObj more
+than once. Remember that UserObj can be C<undef>.
+
+For example, a template for due date alerting could be:
+
+  
+  RT alert: {$Ticket->SubjectTag} is due in { $Ticket->DueObj->AgeAsString() }
 
 =head1 LICENSE
 

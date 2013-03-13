@@ -18,7 +18,7 @@ RT::Action::SMSNotify
 
 =head1 DESCRIPTION
 
-See L<RT::Extension::SMSNotify> for details
+See L<RT::Extension::SMSNotify> for details on how to use this extension.
 
 This action may be invoked directly, from rt-crontool, or via a Scrip.
 
@@ -155,7 +155,7 @@ sub Prepare {
 		return 0;
 	}
 
-	if (defined(RT->Config->Get('SMSNotifyProvider'))) {
+	if (!defined(RT->Config->Get('SMSNotifyProvider'))) {
 		RT::Logger->error("\$SMSNotifyProvider is not set in RT_SiteConfig.pm");
 		return 0;
 	}
@@ -164,65 +164,73 @@ sub Prepare {
 
 	my $ticket = $self->TicketObj;
 	my $destusers = {};
-	my @numbers = ();
+	my %numbers = ();
 	foreach my $argpart (split(',', $self->Argument)) {
 		my ($userarray, $phoneno) = _ArgToUsers($ticket, $argpart);
 		_AddPagersToRecipients($destusers, $userarray) if defined($userarray);
-		push(@numbers, $phoneno) if defined($phoneno);
+		$numbers{$phoneno} = undef if defined($phoneno);
 	}
 	# For each unique user to be notified, get their phone number(s) using
-	# the $SMSNotifyGetPhoneForUserFn mapping function and add all defined
-	# results to the numbers array.
+	# the $SMSNotifyGetPhoneForUserFn mapping function and if it's defined,
+	# add that number as a key to the numbers hash with their user ID as the value.
+	# (If multiple users have the same number, the last user wins).
 	RT::Logger->debug("SMSNotify: Checking users for pager numbers: " . join(', ', map $_->Name, values %$destusers) );
-	push(@numbers, grep length, map &{$getpagerfn}($_, $ticket), values %$destusers);
+	foreach my $u (values %$destusers) {
+		foreach my $ph (&{$getpagerfn}($u, $ticket)) {
+			RT::Logger->debug("SMSNotify: Adding $ph for user " . $u->Name);
+			$numbers{$ph} = $u if length($ph);
+		}
+	}
 
-	if (@numbers) {
-		RT::Logger->info("SMSNotify: Preparing to send SMSes to: " . Dumper(@numbers) );
+	if (%numbers) {
+		RT::Logger->info("SMSNotify: Preparing to send SMSes to: " . join(', ', keys %numbers) );
 	} else {
 		RT::Logger->info("SMSNotify: No recipients with pager numbers, not sending SMSes");
 	}
 
-	$self->{'PagerNumbers'} = \@numbers;
+	$self->{'PagerNumbersForUsers'} = \%numbers;
 
-	return scalar(@numbers);
+	return scalar keys %numbers;
 }
 
 sub Commit {
 
 	my $self = shift;
 
-	my @memberlist = @{$self->{'PagerNumbers'}};
+	my %memberlist = %{$self->{'PagerNumbersForUsers'}};
 
 	my $cfgargs = RT->Config->Get('SMSNotifyArguments');
 	my $smsprovider = RT->Config->Get('SMSNotifyProvider');
 
 	my $sender = SMS::Send->new( $smsprovider, %$cfgargs );
-	foreach my $ph (@memberlist) {
+	while ( my ($ph,$u) = each %memberlist ) {
 
-		# TODO: Substitute principal associated with current $ph if any into template
 		my ($result, $message) = $self->TemplateObj->Parse(
 			Argument       => $self->Argument,
 			TicketObj      => $self->TicketObj,
-			TransactionObj => $self->TransactionObj
+			TransactionObj => $self->TransactionObj,
+			UserObj        => $u,
+                        PhoneNumber    => $ph
 		);
 		if ( !$result ) {
-			$RT::Logger->error("SMSSend: Failed to populate template: $result, $message");
+			$RT::Logger->error("SMSNotify: Failed to populate template: $result, $message");
 			next;
 		}
 
 		my $MIMEObj = $self->TemplateObj->MIMEObj;
 		my $msgstring = $MIMEObj->bodyhandle->as_string;
 
+		my $uname = defined($u) ? $u->Name : 'none';
 		eval {
-			$RT::Logger->debug("SMSSend: Notifying $ph about ticket SLA");
+			$RT::Logger->debug("SMSNotify: Sending SMS to $ph");
 			$sender->send_sms(
 				text => $msgstring,
 				to   => $ph
 			);
-			$RT::Logger->info("SMSSend: Notified $ph about ticket SLA");
+			$RT::Logger->info("SMSNotify: Sent SMS to $ph (user: $uname)");
 		};
 		if ($@) {
-			$RT::Logger->error("SMSSend: Failed to notify $ph about ticket SLA: $@");
+			$RT::Logger->error("SMSNotify: Failed to send SMS to $ph (user: $uname): $@");
 		}
 	}
 
