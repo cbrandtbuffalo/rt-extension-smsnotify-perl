@@ -165,9 +165,17 @@ For example, a template for due date alerting could be:
   
   RT alert: {$Ticket->SubjectTag} is due in { $Ticket->DueObj->AgeAsString() }
 
-=head1 LICENSE
+=head1 AUTHOR 
 
-The same as for Perl itself
+Craig Ringer <craig@2ndquadrant.com>
+
+=COPYRIGHT 
+
+Copyright 2013 Craig Ringer
+
+This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+
+The full text of the license can be found in the LICENSE file included with this module.
 
 =cut
 
@@ -176,7 +184,7 @@ use strict;
 use warnings;
 
 BEGIN {
-        our $VERSION = '1.00';
+        our $VERSION = '1.01';
 }
 
 use RT::Action::SMSNotify;
