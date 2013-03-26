@@ -96,12 +96,20 @@ C<SMS::Send::RedSMS>.
 
 =head2 $SMSNotifyGetPhoneForUserFn
 
-A function reference. If defined, must be a function that takes an RT::User
-as the 1st argument and returns a phone number as a string. The default implementation
-looks up the RT::User's PagerPhone attribute, which is shown as Pager in the
-RT UI, but you can replace this with an LDAP query or whatever you want.
+This config-overridable method is useful for filtering users to limit the
+recipients of a message.  For example, you might want to return a user's phone
+number only when their local time is between 08:00 and 17:00.
 
-Takes additional arguments of the Ticket being operated on or undef if no
+If set, this variable must be either a function reference or a string that names
+a module with a function named GetPhoneForUser. In either case the variable is set
+in RT_SiteConfig.pm.
+
+If defined this function must take an RT::User as the 1st argument and
+returns a phone number as a string. The default implementation looks up the
+RT::User's PagerPhone attribute, which is shown as Pager in the RT UI, but you
+can replace this with an LDAP query or whatever you want.
+
+Two additional arguments are passed: the Ticket being operated on or undef if no
 ticket, and a user-defined hint extracted from the action argument if found as
 documented in L<SMS::Action::SMSNotify>.
 
@@ -109,7 +117,21 @@ Return undef or the empty string if no phone number exists for a user. More
 than one phone number may be returned by returning an array (not an arrayref);
 all of them will be notified.
 
-This method is useful for filtering users to limit the recipients of a message.
+To set it as an anonymous function reference:
+
+  Set($SMSNotifyGetPhoneForUserFn, sub {
+    my ($user, $ticket, $hint) = @_;
+    return $user->PagerPhone;
+  });
+
+Alternately and preferably if the above code were put in a function named
+GetPhoneForUser in a module named 'My::Module' with a matching 'package'
+declaration the configuration would be:
+
+  Set($SMSNotifyGetPhoneForUserFn, 'My::Module');
+
+Note that this method has full access to the RT system so write
+it carefully and don't trust user-supplied code.
 
 =head2 Use with rt-crontool
 
@@ -162,7 +184,6 @@ than once. Remember that UserObj can be C<undef>.
 
 For example, a template for due date alerting could be:
 
-  
   RT alert: {$Ticket->SubjectTag} is due in { $Ticket->DueObj->AgeAsString() }
 
 =head1 AUTHOR 
@@ -188,5 +209,53 @@ BEGIN {
 }
 
 use RT::Action::SMSNotify;
+
+sub _LoadFuncFromModule {
+    my ($modname, $funcname) = @_;
+    eval "use $modname";
+    if ($@) {
+        RT::Logger->error("SMSNotify: Failed to load module $modname: $@; using default function");
+    } elsif ($modname->can($funcname)) {
+        RT::Logger->debug("SMSNotify: Using $funcname from $modname");
+        no strict 'refs';
+        return *{"${modname}::${funcname}"}{CODE};
+    } else {
+        RT::Logger->error("SMSNotify: Loaded module $modname but no function $funcname found in the module; using default function");
+    }
+    return undef;
+}
+
+# Default definition of $SMSNotifyGetPhoneForUserFn
+sub _DefaultGetPagerNumberForUser {
+	# This is a function so it can be overridden in the config to use
+	# database lookups or whatever. 2nd argument (the RT::Ticket object if any)
+	# is ignored, as is the 3rd argument (a hint).
+        RT::Logger->debug("SMSNotify: Using default \$SMSNotifyGetPhoneForUserFn");
+	return $_[0]->PagerPhone if $_[0];
+}
+
+our $_GetPhoneForUserFnRef = undef;
+
+# Convenience lookup for $SMSNotifyGetPhoneForUserFn and its default
+sub _GetPhoneLookupFunction {
+    if (defined($_GetPhoneForUserFnRef)) {
+        return $_GetPhoneForUserFnRef;
+    } else {
+        # Default to the built-in lookup
+        my $cfgval = RT->Config->Get('SMSNotifyGetPhoneForUserFn');
+        my $fn = \&_DefaultGetPagerNumberForUser;
+        if (ref $cfgval eq 'CODE') {
+            # User has supplied a function reference, use it
+            $fn = $cfgval;
+        } elsif (!ref $cfgval) {
+            # User has supplied the string name of a module; load it and look
+            # for a GetPhoneForUser function in it
+            $fn = _LoadFuncFromModule($cfgval, 'GetPhoneForUser') // $fn;
+        } else {
+            RT::Logger->error("SMSNotify: \$SMSNotifyGetPhoneForUserFn is neither subroutine reference nor module name string. Using default function.");
+        }
+        return $fn;
+    }
+}
 
 1;

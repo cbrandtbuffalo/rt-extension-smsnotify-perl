@@ -135,12 +135,6 @@ sub _AddPagersToRecipients {
 		$destusers->{$u->Id} = $u;
 	}
 }
-sub _GetPagerNumberForUserFilter {
-	# This is a function so it can be overridden in the config to use
-	# database lookups or whatever. 2nd argument (the RT::Ticket object if any)
-	# is ignored.
-	return $_[0]->PagerPhone;
-}
 
 sub Prepare {
 	my $self = shift;
@@ -160,7 +154,7 @@ sub Prepare {
 		return 0;
 	}
 
-	my $getpagerfn = RT->Config->Get('SMSNotifyGetPhoneForUserFn') // \&_GetPagerNumberForUserFilter;
+	my $getpagerfn = RT::Extension::SMSNotify::_GetPhoneLookupFunction();
 
 	my $ticket = $self->TicketObj;
 	my $destusers = {};
@@ -177,7 +171,11 @@ sub Prepare {
 	RT::Logger->debug("SMSNotify: Checking users for pager numbers: " . join(', ', map $_->Name, values %$destusers) );
 	foreach my $u (values %$destusers) {
 		foreach my $ph (&{$getpagerfn}($u, $ticket)) {
-			RT::Logger->debug("SMSNotify: Adding $ph for user " . $u->Name);
+			if (defined($ph)) {
+				RT::Logger->debug("SMSNotify: Adding $ph for user " . $u->Name);
+			} else {
+				RT::Logger->debug("SMSNotify: GetPhoneForUser function returned undef for " . $u->Name . ", skipping");
+			}
 			$numbers{$ph} = $u if length($ph);
 		}
 	}
