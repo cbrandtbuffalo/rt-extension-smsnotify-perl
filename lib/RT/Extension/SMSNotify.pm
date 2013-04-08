@@ -35,6 +35,11 @@ reliable, guaranteed-delivery messaging you should look elsewhere - but
 remember that no message is truly received until a human has read and
 acknowledged it.
 
+If SMSes fail to send the resulting exception is reported to the 
+address by default. You can provide your own error reporting function
+to override it; see CONFIGURATION below.
+
+
 =head1 INSTALLATION
 
 Install RT::Extension::SMSNotify using CPAN or using the usual:
@@ -133,6 +138,24 @@ declaration the configuration would be:
 Note that this method has full access to the RT system so write
 it carefully and don't trust user-supplied code.
 
+=head2 $SMSNotifyErrorAlertFn
+
+This config-overridable method lets you change this extension's error reporting
+for when SMSes fail to send. You might want this if you're using a pre-paid
+service and want to alert when you're out of credit, for example.
+
+It works like $SMSNotifyGetPhoneForUserFn in that it can be set to a function
+reference or to the string name of a module with a function named 'ErrorAlert'.
+
+The function (whether in a module or a func ref) must accept four arguments:
+
+* The SMS::Send result code (non-zero)
+* The SMS::Send error message
+* The destination phone number
+* The destination RT::User or undef if none
+
+The default implementation sends an email to the rt owner address.
+
 =head2 Use with rt-crontool
 
 This is an example of RT::Extension::SMSNotify use with rt-crontool in
@@ -204,6 +227,8 @@ use 5.10.1;
 use strict;
 use warnings;
 
+use RT::Interface::Email;
+
 BEGIN {
         our $VERSION = '1.01';
 }
@@ -212,6 +237,10 @@ use RT::Action::SMSNotify;
 
 sub _LoadFuncFromModule {
     my ($modname, $funcname) = @_;
+    if (!$modname) {
+        RT::Logger->debug("SMSNotify: _LoadFuncFromModule: no module name passed, cannot load the function $funcname");
+        return undef;
+    }
     eval "use $modname";
     if ($@) {
         RT::Logger->error("SMSNotify: Failed to load module $modname: $@; using default function");
@@ -227,11 +256,33 @@ sub _LoadFuncFromModule {
 
 # Default definition of $SMSNotifyGetPhoneForUserFn
 sub _DefaultGetPagerNumberForUser {
-	# This is a function so it can be overridden in the config to use
-	# database lookups or whatever. 2nd argument (the RT::Ticket object if any)
-	# is ignored, as is the 3rd argument (a hint).
-        RT::Logger->debug("SMSNotify: Using default \$SMSNotifyGetPhoneForUserFn");
-	return $_[0]->PagerPhone if $_[0];
+    # This is a function so it can be overridden in the config to use
+    # database lookups or whatever. 2nd argument (the RT::Ticket object if any)
+    # is ignored, as is the 3rd argument (a hint).
+    RT::Logger->debug("SMSNotify: Using default \$SMSNotifyGetPhoneForUserFn");
+    return $_[0]->PagerPhone if $_[0];
+}
+
+# When SMSes fail to send this function is called. It can be used to use a side
+# channel to screama for help from an admin. The default emails the rt owner
+# if any SMS fails to send. Takes SMS error code, sms error message, recipient
+# phone number (if any) and the RT::User (if any) of the recipient as arguments.
+# 
+sub _DefaultErrorAlertFn {
+    my ($errorcode, $msg, $phoneno, $rtuserobj) = @_;
+    my $erroremail = RT->Config->Get('OwnerEmail');
+    my $uname = defined($rtuserobj) ? $rtuserobj->Name : 'none';
+    my $formattedmsg = "RT SMS alert failed to send to user $uname with $errorcode: $msg";
+    if ($erroremail) {
+	RT::Logger->debug("Emailing rt-owner with SMS failure alert: $formattedmsg");
+        RT::Interface::Email::MailError(
+            Subject     => 'RT Alert: Failed to send SMS notification: $errorcode',
+            Explanation => $formattedmsg,
+            LogLevel    => 'error'
+        );
+    } else {
+	RT::Logger->error("rt-owner email not defined, could not send email alert. Message was $formattedmsg.");
+    }
 }
 
 our $_GetPhoneForUserFnRef = undef;
@@ -241,21 +292,36 @@ sub _GetPhoneLookupFunction {
     if (defined($_GetPhoneForUserFnRef)) {
         return $_GetPhoneForUserFnRef;
     } else {
-        # Default to the built-in lookup
-        my $cfgval = RT->Config->Get('SMSNotifyGetPhoneForUserFn');
-        my $fn = \&_DefaultGetPagerNumberForUser;
-        if (ref $cfgval eq 'CODE') {
-            # User has supplied a function reference, use it
-            $fn = $cfgval;
-        } elsif (!ref $cfgval) {
-            # User has supplied the string name of a module; load it and look
-            # for a GetPhoneForUser function in it
-            $fn = _LoadFuncFromModule($cfgval, 'GetPhoneForUser') // $fn;
-        } else {
-            RT::Logger->error("SMSNotify: \$SMSNotifyGetPhoneForUserFn is neither subroutine reference nor module name string. Using default function.");
-        }
-        return $fn;
+        return $_GetPhoneForUserFnRef =_GetConfigurableFunction('SMSNotifyGetPhoneForUserFn', 'GetPhoneForUser', \&_DefaultGetPagerNumberForUser);
     }
+}
+
+our $_ErrorNotifyFnRef = undef;
+
+sub _GetErrorNotifyFunction {
+    if (defined($_ErrorNotifyFnRef)) {
+        return $_ErrorNotifyFnRef;
+    } else {
+        return $_ErrorNotifyFnRef =_GetConfigurableFunction('SMSNotifyErrorAlertFn', 'ErrorAlert', \&_DefaultErrorAlertFn);
+    }
+}
+
+sub _GetConfigurableFunction {
+    my ($cfgvarname, $funcname, $defaultfunc) = @_;
+    # Default to the built-in lookup
+    my $cfgval = RT->Config->Get($cfgvarname);
+    my $fn = $defaultfunc;
+    if (ref $cfgval eq 'CODE') {
+        # User has supplied a function reference, use it
+        $fn = $cfgval;
+    } elsif (!ref $cfgval) {
+        # User has supplied the string name of a module; load it and look
+        # for a GetPhoneForUser function in it
+        $fn = _LoadFuncFromModule($cfgval, $funcname) // $fn;
+    } else {
+        RT::Logger->error("SMSNotify: $cfgvarname is neither subroutine reference nor module name string. Using default function.");
+    }
+    return $fn;
 }
 
 1;

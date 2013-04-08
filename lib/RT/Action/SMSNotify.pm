@@ -18,7 +18,8 @@ RT::Action::SMSNotify
 
 =head1 DESCRIPTION
 
-See L<RT::Extension::SMSNotify> for details on how to use this extension.
+See L<RT::Extension::SMSNotify> for details on how to use this extension,
+including how to customise error reporting.
 
 This action may be invoked directly, from rt-crontool, or via a Scrip.
 
@@ -203,6 +204,8 @@ sub Commit {
 	my $sender = SMS::Send->new( $smsprovider, %$cfgargs );
 	while ( my ($ph,$u) = each %memberlist ) {
 
+		my $uname = defined($u) ? $u->Name : 'none';
+
 		my ($result, $message) = $self->TemplateObj->Parse(
 			Argument       => $self->Argument,
 			TicketObj      => $self->TicketObj,
@@ -211,14 +214,16 @@ sub Commit {
                         PhoneNumber    => $ph
 		);
 		if ( !$result ) {
-			$RT::Logger->error("SMSNotify: Failed to populate template: $result, $message");
+			eval {
+				RT::Extension::SMSNotify::_GetErrorNotifyFunction()->($result, $message, $ph, $u);
+			};
+			if ($@) { RT::Logger->crit("SMSNotify: Error notify function died: $@"); }
 			next;
 		}
 
 		my $MIMEObj = $self->TemplateObj->MIMEObj;
 		my $msgstring = $MIMEObj->bodyhandle->as_string;
 
-		my $uname = defined($u) ? $u->Name : 'none';
 		eval {
 			$RT::Logger->debug("SMSNotify: Sending SMS to $ph");
 			$sender->send_sms(
@@ -228,7 +233,12 @@ sub Commit {
 			$RT::Logger->info("SMSNotify: Sent SMS to $ph (user: $uname)");
 		};
 		if ($@) {
-			$RT::Logger->error("SMSNotify: Failed to send SMS to $ph (user: $uname): $@");
+			my $msg = $@;
+			eval {
+				my $errfn = RT::Extension::SMSNotify::_GetErrorNotifyFunction();
+				$errfn->($result, $msg, $ph, $u);
+			};
+			if ($@) { RT::Logger->crit("SMSNotify: Error notify function died: $@"); }
 		}
 	}
 
