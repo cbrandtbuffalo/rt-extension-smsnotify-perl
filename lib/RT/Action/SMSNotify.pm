@@ -98,7 +98,7 @@ sub _ArgToUsers {
 			$m = $ticket->AdminCc->UserMembersObj->ItemsArrayRef;
 		}
 		when (/^TicketOwner$/) {
-			$m = $ticket->Owner->UserMembersObj->ItemsArrayRef;
+			$m = $ticket->OwnerGroup->UserMembersObj->ItemsArrayRef;
 		}
 		when (/^QueueCc$/) {
 			$m = $queue->Cc->UserMembersObj->ItemsArrayRef;
