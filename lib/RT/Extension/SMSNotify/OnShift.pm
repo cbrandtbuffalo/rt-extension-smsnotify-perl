@@ -43,8 +43,9 @@ Be careful to avoid leading zeroes, since Perl will interpret the value as octal
  $ perl -e 'print 0600 . "\n"';
  384
 
-At this point there's no provision for special notification rules if no users are
-found on shift. Make sure you define your shifts and user assignments carefully.
+At this point there's no provision for special notification rules if no users
+are found on shift, since the filter function only sees one user at a time.
+Make sure you define your shifts and user assignments carefully.
 
 =head1 AUTHOR
 
