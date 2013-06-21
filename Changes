@@ -1,3 +1,6 @@
+1.03: Fri Jun 21 11:11:22 2013 +0800
+	Allow per-action override of notification phone filter function
+
 1.02: 
 	Notify RT owner when SMSes fail to send with hookable function
 
