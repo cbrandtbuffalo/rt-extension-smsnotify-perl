@@ -1,3 +1,9 @@
+1.05: Thu Aug 1  18:12:00 2013 +0800
+	Correct quoting that prevented interpolation of error message
+
+1.04: Tue Jul 30 14:26:00 2013 +0800
+	Update for CPAN to address a minor packaging error
+
 1.03: Fri Jun 21 11:11:22 2013 +0800
 	Allow per-action override of notification phone filter function
 

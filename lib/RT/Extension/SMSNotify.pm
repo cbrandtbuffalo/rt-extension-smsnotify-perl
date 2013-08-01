@@ -231,7 +231,7 @@ use RT::Interface::Email;
 use RT::Extension::SMSNotify::PagerForUser;
 
 BEGIN {
-        our $VERSION = '1.03';
+        our $VERSION = '1.04';
 }
 
 use RT::Action::SMSNotify;
@@ -268,7 +268,7 @@ sub _DefaultErrorAlertFn {
     if ($erroremail) {
 	RT::Logger->debug("Emailing rt-owner with SMS failure alert: $formattedmsg");
         RT::Interface::Email::MailError(
-            Subject     => 'RT Alert: Failed to send SMS notification: $errorcode',
+            Subject     => "RT Alert: Failed to send SMS notification: $errorcode",
             Explanation => $formattedmsg,
             LogLevel    => 'error'
         );
