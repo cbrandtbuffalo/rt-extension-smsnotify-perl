@@ -6,11 +6,10 @@ use strict;
 use warnings;
 use 5.10.1;
 
-# Returns true if the passed time is within the shift bounds passed, where all
-# arguments are in minutes since midnight.
-#
-# for timeinrange(t, a, b), if a>b then return true if t between a and b; otherwise return true if a NOT between b and a
-#
+use Business::Hours;
+
+# Returns true if the passed time is within the shift bounds passed.
+
 sub _TimeInShiftRange {
     my ($nowminutes, $shiftstartutcmins, $shiftendutcmins) = @_;
     if ($nowminutes < 0 || $nowminutes >= 24*60) {

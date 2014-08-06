@@ -260,6 +260,8 @@ sub _LoadFuncFromModule {
 # if any SMS fails to send. Takes SMS error code, sms error message, recipient
 # phone number (if any) and the RT::User (if any) of the recipient as arguments.
 # 
+# Rather than override this you can just pass a funcref in RT_SiteConfig.pm; see
+# the docs.
 sub _DefaultErrorAlertFn {
     my ($errorcode, $msg, $phoneno, $rtuserobj) = @_;
     my $erroremail = RT->Config->Get('OwnerEmail');
