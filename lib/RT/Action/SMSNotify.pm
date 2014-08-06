@@ -97,31 +97,31 @@ sub _ArgToUsers {
 	my $p = undef;
 	RT::Logger->debug("SMSNotify: Examining $name for recipients");
 	for ($name) {
-		when (/^TicketRequestors?$/) {
+		if (/^TicketRequestors?$/) {
 			$m = $ticket->Requestors->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^TicketCc$/) {
+		elsif (/^TicketCc$/) {
 			$m = $ticket->Cc->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^TicketAdminCc$/) {
+		elsif (/^TicketAdminCc$/) {
 			$m = $ticket->AdminCc->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^TicketOwner$/) {
+		elsif (/^TicketOwner$/) {
 			$m = $ticket->OwnerGroup->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^QueueCc$/) {
+		elsif (/^QueueCc$/) {
 			$m = $queue->Cc->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^QueueAdminCc$/) {
+		elsif (/^QueueAdminCc$/) {
 			$m = $queue->AdminCc->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^g:/) { 
+		elsif (/^g:/) { 
 			my $g = RT::Group->new($RT::SystemUser);
 			$g->LoadUserDefinedGroup(substr($name,2));
 			$m = $g->UserMembersObj->ItemsArrayRef;
 		}
-		when (/^p:/) { $p = substr($name, 2); }
-		default {
+		elsif (/^p:/) { $p = substr($name, 2); }
+		else {
 			RT::Logger->error("Unrecognised argument $name, ignoring");
 		}
 	}

@@ -26,7 +26,7 @@ L<SMS::Send::RedOxygen>. You will need an SMS::Send driver module installed to
 use the SMSNotify extension. Writing them is easy if you can't find one for
 your provider.
 
-B<Most SMS providers only offer asynchronous non-guranteed delivery> and
+B<Most SMS providers only offer asynchronous non-guaranteed delivery> and
 there's no provision for asynchronous delivery status notification in the
 SMS::Send API. If a text message isn't immediately rejected by the provider
 this plugin will report that the message was dispatched successfully. SMSNotify
@@ -186,7 +186,7 @@ or to send direct to a specified phone number:
 
     rt-crontool --search RT::Search::FromSQL --search-arg 'Id = 1033' --action RT::Action::SMSNotify --action-arg "p:+1234123132" --template 'SLA Alert SMS'
 
-=head TEMPLATES
+=head1 TEMPLATES
 
 Unlike email templates, your SMS templates don't need a header. RT will
 complain if you don't leave the first line blank in your template as it thinks
@@ -213,7 +213,7 @@ For example, a template for due date alerting could be:
 
 Craig Ringer <craig@2ndquadrant.com>
 
-=COPYRIGHT 
+=head1 COPYRIGHT 
 
 Copyright 2013 Craig Ringer
 
