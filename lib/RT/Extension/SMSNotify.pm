@@ -101,9 +101,14 @@ C<SMS::Send::RedSMS>.
 
 =head2 $SMSNotifyGetPhoneForUserFn
 
-This config-overridable method is useful for filtering users to limit the
-recipients of a message.  For example, you might want to return a user's phone
-number only when their local time is between 08:00 and 17:00.
+By default, notifications will use the Pager number defined on the RT
+user record of recipients. This behavior can be overriden to support
+additional logic.
+
+Setting a custom method via C<$SMSNotifyGetPhoneForUserFn> is useful for
+filtering users to limit the recipients of a message.  For example, you
+might want to return a user's phone number only when their local time
+is between 08:00 and 17:00.
 
 If set, this variable must be either a function reference or a string that names
 a module with a function named GetPhoneForUser. In either case the variable is set
