@@ -89,7 +89,7 @@ See the configuration section and L<RT::Extension::SMSNotify>.
 sub GetPhoneForUser {
     # Cache the custom field on first use to avoid repeat lookups
     if (!defined($cf)) {
-        $cf = RT::CustomField->new( RT::SystemUser );
+        $cf = RT::CustomField->new( RT->SystemUser );
         $cf->Load('ShiftCode');
     }
 
