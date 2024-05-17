@@ -8,3 +8,6 @@ MANIFEST.SKIP
 RT-Extension-SMSNotify-.*
 \..*\.swp
 README.md
+Makefile
+MYMETA.json
+MYMETA.yml
